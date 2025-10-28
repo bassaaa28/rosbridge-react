@@ -24,17 +24,17 @@ const CameraView = ({ ros, topicName = "/camera/image_raw/compressed" }) => {
   }, [ros, topicName]);
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-4">
+    <div className="h-full flex flex-col">
       <h3 className="text-xl font-bold mb-3 text-gray-800">Camera View</h3>
-      <div className="w-full overflow-hidden rounded-md">
+      <div className="flex-1 w-full overflow-hidden rounded-md">
         {imgData ? (
           <img
             src={imgData}
             alt="Camera Feed"
-            className="w-full h-auto object-contain"
+            className="w-full h-full object-contain"
           />
         ) : (
-          <div className="w-full h-48 bg-gray-200 flex items-center justify-center text-gray-500">
+          <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-500">
             No camera data
           </div>
         )}

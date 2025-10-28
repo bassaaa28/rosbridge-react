@@ -56,7 +56,7 @@ const LaserScanPoints = ({ ros, topicName = "/scan" }) => {
 
 const RobotModel = ({ ros }) => {
   const [jointStates, setJointStates] = useState({});
-  const [robotDescription, setRobotDescription] = useState(null);
+  const [, setRobotDescription] = useState(null);
 
   useEffect(() => {
     if (!ros) return;
@@ -109,14 +109,14 @@ const RobotModel = ({ ros }) => {
         {/* Base */}
         <mesh position={[0, 0, 0.1]}>
           <cylinderGeometry args={[0.1, 0.1, 0.2]} />
-          <meshStandardMaterial color="#4A5568" />
+          <meshStandardMaterial color="black" />
         </mesh>
 
         {/* Link 1 */}
         <group rotation={[0, 0, jointPositions.joint1]}>
           <mesh position={[0, 0, 0.2]}>
             <cylinderGeometry args={[0.08, 0.08, 0.15]} />
-            <meshStandardMaterial color="#2D3748" />
+            <meshStandardMaterial color="black" />
           </mesh>
 
           {/* Link 2 */}
@@ -126,7 +126,7 @@ const RobotModel = ({ ros }) => {
           >
             <mesh position={[0.2, 0, 0]}>
               <boxGeometry args={[0.4, 0.06, 0.06]} />
-              <meshStandardMaterial color="#2D3748" />
+              <meshStandardMaterial color="black" />
             </mesh>
 
             {/* Link 3 */}
@@ -136,7 +136,7 @@ const RobotModel = ({ ros }) => {
             >
               <mesh position={[0.15, 0, 0]}>
                 <boxGeometry args={[0.3, 0.05, 0.05]} />
-                <meshStandardMaterial color="#2D3748" />
+                <meshStandardMaterial color="black" />
               </mesh>
 
               {/* Link 4 */}
@@ -146,7 +146,7 @@ const RobotModel = ({ ros }) => {
               >
                 <mesh position={[0, 0, 0.05]}>
                   <cylinderGeometry args={[0.04, 0.04, 0.1]} />
-                  <meshStandardMaterial color="#2D3748" />
+                  <meshStandardMaterial color="black" />
                 </mesh>
 
                 {/* Link 5 */}
@@ -156,7 +156,7 @@ const RobotModel = ({ ros }) => {
                 >
                   <mesh position={[0.05, 0, 0]}>
                     <boxGeometry args={[0.1, 0.04, 0.04]} />
-                    <meshStandardMaterial color="#2D3748" />
+                    <meshStandardMaterial color="black" />
                   </mesh>
 
                   {/* Link 6 (End Effector) */}
@@ -166,7 +166,7 @@ const RobotModel = ({ ros }) => {
                   >
                     <mesh position={[0.05, 0, 0]}>
                       <boxGeometry args={[0.1, 0.03, 0.03]} />
-                      <meshStandardMaterial color="#E53E3E" />
+                      <meshStandardMaterial color="black" />
                     </mesh>
                   </group>
                 </group>
@@ -223,7 +223,7 @@ const CoordinateAxes = () => {
 
 const Scene3D = ({ ros }) => {
   return (
-    <div className="w-full h-[600px] bg-gray-900 rounded-lg overflow-hidden">
+    <div className="w-full h-full bg-white rounded-lg overflow-hidden">
       <Canvas>
         <PerspectiveCamera makeDefault position={[2, 2, 2]} />
         <OrbitControls />
