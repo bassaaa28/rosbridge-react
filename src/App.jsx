@@ -10,7 +10,7 @@ function App() {
   const [activeTab, setActiveTab] = useState("talk");
 
   const tabs = [
-    { id: "talk", label: "Talk", component: <TalkTab /> },
+    { id: "talk", label: "Talk", component: <TalkTab ros={ros} /> },
     { id: "log", label: "Log", component: <LogTab ros={ros} /> },
     { id: "account", label: "Account", component: <AccountTab /> },
   ];
