@@ -54,8 +54,15 @@ function App() {
         </div>
 
         {/* Tab Content */}
-        <div className="flex-1 overflow-hidden">
-          {tabs.find((tab) => tab.id === activeTab)?.component}
+        <div className="flex-1 overflow-hidden relative">
+          {tabs.map((tab) => (
+            <div
+              key={tab.id}
+              className={`absolute inset-0 ${activeTab === tab.id ? "block" : "hidden"}`}
+            >
+              {tab.component}
+            </div>
+          ))}
         </div>
       </div>
 

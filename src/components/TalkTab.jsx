@@ -6,19 +6,15 @@ const TalkTab = ({ ros }) => {
   const [inputText, setInputText] = useState("");
   const [isConnected, setIsConnected] = useState(false);
   const [currentBotMessage, setCurrentBotMessage] = useState(null);
-  const [isRecording, setIsRecording] = useState(false);
-  
+
   // ROS Topics
   const userInputTopic = useRef(null);
   const responseStreamTopic = useRef(null);
   const responseTopic = useRef(null);
-  const audioTopic = useRef(null);
-  const audioInputTopic = useRef(null);
-  const transcriptionTopic = useRef(null);
-  
-  // 音声録音用
-  const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
+
+  // 自動スクロール用
+  const messagesEndRef = useRef(null);
+  const textareaRef = useRef(null);
 
   useEffect(() => {
     if (!ros) return;
@@ -26,41 +22,74 @@ const TalkTab = ({ ros }) => {
     // ROS Topicの初期化
     userInputTopic.current = new ROSLIB.Topic({
       ros: ros,
-      name: '/user_input',
-      messageType: 'std_msgs/String'
+      name: "/user_input",
+      messageType: "std_msgs/String",
     });
 
     responseStreamTopic.current = new ROSLIB.Topic({
       ros: ros,
-      name: '/chatbot_response_stream',
-      messageType: 'std_msgs/String'
+      name: "/chatbot_response_stream",
+      messageType: "std_msgs/String",
     });
 
     responseTopic.current = new ROSLIB.Topic({
       ros: ros,
-      name: '/chatbot_response',
-      messageType: 'std_msgs/String'
+      name: "/chatbot_response",
+      messageType: "std_msgs/String",
     });
 
-    audioTopic.current = new ROSLIB.Topic({
-      ros: ros,
-      name: '/tts_audio_data',
-      messageType: 'std_msgs/UInt8MultiArray'
-    });
+    // ストリーミングチャンクの処理
+    const handleStreamChunk = (chunk) => {
+      setCurrentBotMessage((prev) => {
+        const now = Date.now();
 
-    // 音声入力用トピック
-    audioInputTopic.current = new ROSLIB.Topic({
-      ros: ros,
-      name: '/audio_input',
-      messageType: 'std_msgs/UInt8MultiArray'
-    });
+        if (!prev) {
+          // 新しいメッセージ開始
+          return {
+            type: "ai",
+            text: chunk,
+            timestamp: new Date().toLocaleTimeString("ja-JP", {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+            timestampMs: now,
+            streaming: true,
+          };
+        } else {
+          // 既存メッセージに追加（ストリーミング中の場合のみ）
+          return {
+            ...prev,
+            text: (prev.text || "") + chunk,
+            streaming: true,
+          };
+        }
+      });
+    };
 
-    // 転写結果受信用トピック
-    transcriptionTopic.current = new ROSLIB.Topic({
-      ros: ros,
-      name: '/transcription_result',
-      messageType: 'std_msgs/String'
-    });
+    // 完了応答の処理
+    const handleCompleteResponse = () => {
+      setCurrentBotMessage((prev) => {
+        if (prev && prev.streaming === true) {
+          // 完了したメッセージをmessagesに追加
+          // ただし、既にmessagesに存在する場合は追加しない（重複防止）
+          setMessages((messages) => {
+            // 同じタイムスタンプのメッセージが既に存在するかチェック
+            const alreadyExists = messages.some(
+              (msg) =>
+                msg.type === "ai" &&
+                msg.timestampMs === prev.timestampMs &&
+                msg.text === prev.text
+            );
+            if (!alreadyExists) {
+              return [...messages, { ...prev, streaming: false }];
+            }
+            return messages;
+          });
+        }
+        // currentBotMessageをクリア
+        return null;
+      });
+    };
 
     // ストリーミング応答の購読
     responseStreamTopic.current.subscribe((message) => {
@@ -68,18 +97,8 @@ const TalkTab = ({ ros }) => {
     });
 
     // 完了応答の購読
-    responseTopic.current.subscribe((message) => {
-      handleCompleteResponse(message.data);
-    });
-
-    // TTS音声の購読
-    audioTopic.current.subscribe((message) => {
-      handleAudioResponse(message.data);
-    });
-
-    // 転写結果の購読
-    transcriptionTopic.current.subscribe((message) => {
-      handleTranscriptionResult(message.data);
+    responseTopic.current.subscribe(() => {
+      handleCompleteResponse();
     });
 
     setIsConnected(true);
@@ -87,85 +106,104 @@ const TalkTab = ({ ros }) => {
     return () => {
       responseStreamTopic.current?.unsubscribe();
       responseTopic.current?.unsubscribe();
-      audioTopic.current?.unsubscribe();
-      transcriptionTopic.current?.unsubscribe();
       setIsConnected(false);
     };
   }, [ros]);
-
-  // ストリーミングチャンクの処理
-  const handleStreamChunk = (chunk) => {
-    setCurrentBotMessage(prev => {
-      const newText = (prev?.text || '') + chunk;
-      return {
-        type: 'ai',
-        text: newText,
-        timestamp: prev?.timestamp || new Date().toLocaleTimeString("ja-JP", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        streaming: true
-      };
-    });
-  };
-
-  // 完了応答の処理
-  const handleCompleteResponse = (response) => {
-    if (currentBotMessage) {
-      setMessages(prev => [...prev, { ...currentBotMessage, streaming: false }]);
-      setCurrentBotMessage(null);
-    }
-  };
-
-  // TTS音声の処理
-  const handleAudioResponse = (audioData) => {
-    try {
-      // UInt8Arrayから音声データを復元
-      const audioBytes = new Uint8Array(audioData);
-      const audioBlob = new Blob([audioBytes], { type: 'audio/mpeg' });
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-      audio.play();
-      
-      // 再生終了後にURLを解放
-      audio.onended = () => {
-        URL.revokeObjectURL(audioUrl);
-      };
-    } catch (error) {
-      console.error('音声再生エラー:', error);
-    }
-  };
-
-  // 転写結果の処理
-  const handleTranscriptionResult = (text) => {
-    if (text.trim()) {
-      setInputText(text);
-      // 自動送信する場合は以下のコメントアウトを外す
-      // handleSendMessage(text);
-    }
-  };
 
   // テキスト送信
   const handleSend = () => {
     if (!inputText.trim() || !isConnected) return;
     handleSendMessage(inputText);
     setInputText("");
+    // テキストエリアの高さをリセット
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
   };
 
   const handleSendMessage = (text) => {
-    // ユーザーメッセージを表示
-    setMessages(prev => [...prev, {
-      type: "user",
-      text: text,
-      timestamp: new Date().toLocaleTimeString("ja-JP", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    }]);
+    const timestamp = new Date().toLocaleTimeString("ja-JP", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const timestampMs = Date.now();
+
+    // 新しいユーザーメッセージ送信時に、前のストリーミング中のメッセージがあれば保存
+    setCurrentBotMessage((prev) => {
+      if (prev && prev.streaming === true) {
+        // ストリーミング中のメッセージとユーザーメッセージをまとめて追加
+        // 重複チェック: 同じタイムスタンプのメッセージが既に存在しないことを確認
+        setMessages((messages) => {
+          const alreadyExists = messages.some(
+            (msg) =>
+              msg.type === "ai" &&
+              msg.timestampMs === prev.timestampMs &&
+              msg.text === prev.text
+          );
+          if (!alreadyExists) {
+            return [
+              ...messages,
+              { ...prev, streaming: false },
+              {
+                type: "user",
+                text: text,
+                timestamp: timestamp,
+                timestampMs: timestampMs,
+              },
+            ];
+          } else {
+            // AIメッセージが既に存在する場合は、ユーザーメッセージのみ追加
+            // ユーザーメッセージも重複チェック
+            const userAlreadyExists = messages.some(
+              (msg) =>
+                msg.type === "user" &&
+                msg.timestampMs === timestampMs &&
+                msg.text === text
+            );
+            if (!userAlreadyExists) {
+              return [
+                ...messages,
+                {
+                  type: "user",
+                  text: text,
+                  timestamp: timestamp,
+                  timestampMs: timestampMs,
+                },
+              ];
+            }
+            return messages;
+          }
+        });
+      } else {
+        // ストリーミング中のメッセージがない場合は、ユーザーメッセージのみ追加
+        setMessages((messages) => {
+          // 同じタイムスタンプとテキストのユーザーメッセージが既に存在しないことを確認
+          const alreadyExists = messages.some(
+            (msg) =>
+              msg.type === "user" &&
+              msg.timestampMs === timestampMs &&
+              msg.text === text
+          );
+          if (!alreadyExists) {
+            return [
+              ...messages,
+              {
+                type: "user",
+                text: text,
+                timestamp: timestamp,
+                timestampMs: timestampMs,
+              },
+            ];
+          }
+          return messages;
+        });
+      }
+      return null;
+    });
 
     // ROSトピックに送信
     const message = new ROSLIB.Message({
-      data: text
+      data: text,
     });
     userInputTopic.current.publish(message);
   };
@@ -177,88 +215,52 @@ const TalkTab = ({ ros }) => {
     }
   };
 
-  // 音声録音開始
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
-      mediaRecorderRef.current = new MediaRecorder(stream, { 
-        mimeType: 'audio/webm' 
-      });
-      
-      audioChunksRef.current = [];
-      
-      mediaRecorderRef.current.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-      
-      mediaRecorderRef.current.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { 
-          type: 'audio/webm' 
-        });
-        sendAudioToROS(audioBlob);
-        
-        // ストリームを停止
-        stream.getTracks().forEach(track => track.stop());
-      };
-      
-      mediaRecorderRef.current.start();
-      setIsRecording(true);
-      
-    } catch (error) {
-      console.error('録音開始エラー:', error);
-      alert('マイクへのアクセスが拒否されました');
+  // テキストエリアの高さを自動調整
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      const scrollHeight = textareaRef.current.scrollHeight;
+      const maxHeight = 120; // 最大高さ（px）
+      textareaRef.current.style.height = `${Math.min(
+        scrollHeight,
+        maxHeight
+      )}px`;
     }
-  };
+  }, [inputText]);
 
-  // 音声録音停止
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
-  };
+  // メッセージをタイムスタンプでソート（currentBotMessageも含めて）
+  const allMessages =
+    currentBotMessage && currentBotMessage.streaming === true
+      ? [...messages, currentBotMessage]
+      : messages;
 
-  // 音声データをROSに送信
-  const sendAudioToROS = async (audioBlob) => {
-    try {
-      const arrayBuffer = await audioBlob.arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
-      
-      const message = new ROSLIB.Message({
-        data: Array.from(uint8Array)
-      });
-      
-      audioInputTopic.current.publish(message);
-      
-    } catch (error) {
-      console.error('音声送信エラー:', error);
-    }
-  };
+  const displayMessages = allMessages.sort((a, b) => {
+    const timeA = a.timestampMs || 0;
+    const timeB = b.timestampMs || 0;
+    return timeA - timeB;
+  });
 
-  // 音声入力ボタンの処理
-  const handleVoiceInput = () => {
-    if (isRecording) {
-      stopRecording();
-    } else {
-      startRecording();
-    }
-  };
+  // 自動スクロール処理
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [displayMessages]);
 
   return (
     <div className="h-full flex flex-col bg-white">
       {/* 接続状態表示 */}
       <div className="p-2 bg-gray-100 text-center">
-        <span className={`text-sm ${isConnected ? 'text-green-600' : 'text-red-600'}`}>
-          {isConnected ? '🟢 ROS接続中' : '🔴 ROS未接続'}
+        <span
+          className={`text-sm ${
+            isConnected ? "text-green-600" : "text-red-600"
+          }`}
+        >
+          {isConnected ? "🟢 ROS接続中" : "🔴 ROS未接続"}
         </span>
       </div>
 
       {/* チャット履歴 */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((msg, index) => (
+        {displayMessages.map((msg, index) => (
           <div
             key={index}
             className={`flex ${
@@ -273,14 +275,22 @@ const TalkTab = ({ ros }) => {
               </div>
             )}
             <div
-              className={`max-w-[70%] rounded-2xl px-4 py-3 ${
+              className={`max-w-[75%] rounded-2xl px-4 py-3 shadow-sm ${
                 msg.type === "ai"
-                  ? "bg-amber-50 text-gray-800"
-                  : "bg-cyan-100 text-gray-800"
+                  ? "bg-gradient-to-br from-amber-50 to-amber-100 text-gray-800 border border-amber-200"
+                  : "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md"
               }`}
             >
-              <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
-              <p className="text-xs text-gray-500 mt-1">{msg.timestamp}</p>
+              <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                {msg.text}
+              </p>
+              <p
+                className={`text-xs mt-2 ${
+                  msg.type === "ai" ? "text-gray-500" : "text-blue-100"
+                }`}
+              >
+                {msg.timestamp}
+              </p>
             </div>
             {msg.type === "user" && (
               <div className="ml-2 shrink-0">
@@ -295,65 +305,30 @@ const TalkTab = ({ ros }) => {
             )}
           </div>
         ))}
-        
-        {/* 現在入力中のボットメッセージ */}
-        {currentBotMessage && (
-          <div className="flex justify-start">
-            <div className="mr-2 shrink-0">
-              <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
-                <span className="text-lg">🧠</span>
-              </div>
-            </div>
-            <div className="max-w-[70%] rounded-2xl px-4 py-3 bg-amber-50 text-gray-800 animate-pulse">
-              <p className="text-sm whitespace-pre-wrap">{currentBotMessage.text}</p>
-              <p className="text-xs text-gray-500 mt-1">
-                {currentBotMessage.timestamp} (入力中...)
-              </p>
-            </div>
-          </div>
-        )}
+        <div ref={messagesEndRef} />
       </div>
 
       {/* 入力エリア */}
       <div className="border-t p-4 bg-white">
-        <div className="flex gap-2">
-          <input
-            type="text"
+        <div className="flex gap-2 items-end">
+          <textarea
+            ref={textareaRef}
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="メッセージを入力..."
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:border-blue-500"
+            placeholder="メッセージを入力... (Shift+Enterで改行)"
+            className="flex-1 px-4 py-3 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none min-h-[44px] max-h-[120px] overflow-y-auto"
+            rows={1}
             disabled={!isConnected}
           />
           <button
             onClick={handleSend}
             disabled={!isConnected || !inputText.trim()}
-            className="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center hover:bg-blue-600 transition-colors disabled:bg-gray-300"
+            className="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center hover:bg-blue-600 transition-colors disabled:bg-gray-300 shrink-0"
           >
             →
           </button>
-          <button 
-            onClick={handleVoiceInput}
-            disabled={!isConnected}
-            className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-              isRecording 
-                ? 'bg-red-500 text-white animate-pulse' 
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            } disabled:bg-gray-300`}
-          >
-            🎤
-          </button>
         </div>
-        
-        {/* 録音状態表示 */}
-        {isRecording && (
-          <div className="mt-2 text-center">
-            <span className="text-sm text-red-600 animate-pulse">
-              🔴 録音中... (クリックで停止)
-            </span>
-          </div>
-        )}
       </div>
     </div>
   );
