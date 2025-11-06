@@ -263,46 +263,54 @@ const TalkTab = ({ ros }) => {
         {displayMessages.map((msg, index) => (
           <div
             key={index}
-            className={`flex ${
-              msg.type === "ai" ? "justify-start" : "justify-end"
+            className={`flex flex-col ${
+              msg.type === "ai" ? "items-start" : "items-end"
             }`}
           >
-            {msg.type === "ai" && (
-              <div className="mr-2 shrink-0">
-                <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
-                  <span className="text-lg">🧠</span>
-                </div>
-              </div>
-            )}
             <div
-              className={`max-w-[75%] rounded-2xl px-4 py-3 shadow-sm ${
-                msg.type === "ai"
-                  ? "bg-gradient-to-br from-amber-50 to-amber-100 text-gray-800 border border-amber-200"
-                  : "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md"
+              className={`flex ${
+                msg.type === "ai" ? "justify-start" : "justify-end"
               }`}
             >
-              <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-                {msg.text}
-              </p>
-              <p
-                className={`text-xs mt-2 ${
-                  msg.type === "ai" ? "text-gray-500" : "text-blue-100"
+              {msg.type === "ai" && (
+                <div className="mr-2 shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                    <span className="text-lg">🧠</span>
+                  </div>
+                </div>
+              )}
+              <div
+                className={`max-w-[75%] rounded-2xl px-4 py-3 shadow-sm ${
+                  msg.type === "ai"
+                    ? "bg-linear-to-br from-amber-50 to-amber-100 text-gray-800 border border-amber-200"
+                    : "bg-linear-to-br from-blue-500 to-blue-600 text-white shadow-md"
                 }`}
               >
-                {msg.timestamp}
-              </p>
-            </div>
-            {msg.type === "user" && (
-              <div className="ml-2 shrink-0">
-                <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
-                  <img
-                    src={"/nishidalab_logo.png"}
-                    alt="logo"
-                    className="w-8 h-8"
-                  />
-                </div>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-break-word">
+                  {msg.text}
+                </p>
               </div>
-            )}
+              {msg.type === "user" && (
+                <div className="ml-2 shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
+                    <img
+                      src={"/nishidalab_logo.png"}
+                      alt="logo"
+                      className="w-8 h-8"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+            <p
+              className={`text-xs mt-1 ${
+                msg.type === "ai"
+                  ? "text-gray-500 ml-10"
+                  : "text-gray-500 mr-10"
+              }`}
+            >
+              {msg.timestamp}
+            </p>
           </div>
         ))}
         <div ref={messagesEndRef} />
@@ -317,7 +325,7 @@ const TalkTab = ({ ros }) => {
             onChange={(e) => setInputText(e.target.value)}
             onKeyPress={handleKeyPress}
             placeholder="メッセージを入力... (Shift+Enterで改行)"
-            className="flex-1 px-4 py-3 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none min-h-[44px] max-h-[120px] overflow-y-auto"
+            className="flex-1 px-4 py-3 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none min-h-[44px] max-h-[120px] overflow-y-auto text-gray-500"
             rows={1}
             disabled={!isConnected}
           />
